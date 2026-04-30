@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Toe Multiplayer</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            font-weight: 800;
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .container {
+            background-color: #1e293b;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            width: 350px;
+        }
+
+        .controls {
+            margin-bottom: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        input {
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid #334155;
+            background-color: #0f172a;
+            color: white;
+            font-size: 1rem;
+            text-align: center;
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            border: none;
+            background: #3b82f6;
+            color: white;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px);
+            gap: 10px;
+            margin: 0 auto;
+            display: none;
+        }
+
+        .cell {
+            background-color: #0f172a;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid #334155;
+        }
+
+        .cell:hover {
+            border-color: #475569;
+        }
+
+        .cell.x {
+            color: #38bdf8;
+            border-color: #0ea5e9;
+        }
+
+        .cell.o {
+            color: #f43f5e;
+            border-color: #e11d48;
+        }
+        
+        .cell.win {
+            background-color: #064e3b;
+            border-color: #10b981;
+        }
+
+        #status {
+            margin-top: 1.5rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #94a3b8;
+            min-height: 1.5rem;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Tic-Tac-Toe</h1>
+    
+    <div class="container">
+        <div id="setup" class="controls">
+            <button id="btn-create">Create New Room</button>
+            <button id="btn-bot" style="background: #8b5cf6;">Play vs Server Bot</button>
+            <div style="margin: 0.5rem 0; color: #64748b;">OR</div>
+            <input type="text" id="room-input" placeholder="Enter Room Code">
+            <button id="btn-join">Join Room</button>
+        </div>
+
+        <div id="game-info" class="hidden">
+            <h2 id="room-display">Room: ---</h2>
+            <div style="display: flex; justify-content: space-around; margin-bottom: 1rem; font-size: 1.2rem; font-weight: bold;">
+                <span id="player-x" style="color: #38bdf8">Player X</span>
+                <span id="player-o" style="color: #f43f5e">Player O</span>
+            </div>
+        </div>
+
+        <div class="board" id="board">
+            <div class="cell" data-r="0" data-c="0"></div>
+            <div class="cell" data-r="0" data-c="1"></div>
+            <div class="cell" data-r="0" data-c="2"></div>
+            <div class="cell" data-r="1" data-c="0"></div>
+            <div class="cell" data-r="1" data-c="1"></div>
+            <div class="cell" data-r="1" data-c="2"></div>
+            <div class="cell" data-r="2" data-c="0"></div>
+            <div class="cell" data-r="2" data-c="1"></div>
+            <div class="cell" data-r="2" data-c="2"></div>
+        </div>
+
+        <div id="status">Ready to connect...</div>
+        
+        <button id="btn-restart" class="hidden" style="margin-top: 1rem; width: 100%;">Play Again</button>
+    </div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:18563/ws');
+        
+        const setupDiv = document.getElementById('setup');
+        const gameInfoDiv = document.getElementById('game-info');
+        const boardDiv = document.getElementById('board');
+        const statusEl = document.getElementById('status');
+        const roomDisplay = document.getElementById('room-display');
+        const restartBtn = document.getElementById('btn-restart');
+        
+        let mySide = null;
+        let isMyTurn = false;
+        let gameActive = false;
+
+        ws.onopen = () => {
+            statusEl.innerText = "Connected to Server";
+        };
+
+        ws.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            
+            if (msg.error) {
+                alert("Error: " + msg.error);
+                return;
+            }
+
+            if (msg.type === "room_created" || msg.type === "room_joined") {
+                setupDiv.classList.add('hidden');
+                gameInfoDiv.classList.remove('hidden');
+                roomDisplay.innerText = `Room: ${msg.room_id}`;
+                mySide = msg.player;
+                statusEl.innerText = `You are playing as ${mySide}. Waiting for opponent...`;
+            }
+
+            if (msg.type === "game_start" || msg.type === "game_restart") {
+                boardDiv.style.display = 'grid';
+                gameActive = true;
+                restartBtn.classList.add('hidden');
+                updateBoard(msg.board.cells);
+                updateTurn(msg.board.current_player);
+            }
+
+            if (msg.type === "state_update") {
+                updateBoard(msg.board.cells);
+                
+                if (msg.board.state === "WIN") {
+                    gameActive = false;
+                    statusEl.innerText = `${msg.board.current_player} Wins! 🎉`;
+                    highlightWin(msg.board.winning_line);
+                    restartBtn.classList.remove('hidden');
+                } else if (msg.board.state === "DRAW") {
+                    gameActive = false;
+                    statusEl.innerText = "It's a Draw!";
+                    restartBtn.classList.remove('hidden');
+                } else {
+                    updateTurn(msg.board.current_player);
+                }
+            }
+            
+            if (msg.type === "player_disconnected") {
+                gameActive = false;
+                statusEl.innerText = "Opponent disconnected.";
+            }
+        };
+
+        function updateBoard(cells) {
+            document.querySelectorAll('.cell').forEach((cell, idx) => {
+                const val = cells[idx];
+                cell.innerText = val;
+                cell.className = 'cell'; // reset
+                if (val === 'X') cell.classList.add('x');
+                if (val === 'O') cell.classList.add('o');
+            });
+        }
+
+        function updateTurn(currentPlayer) {
+            isMyTurn = (currentPlayer === mySide);
+            statusEl.innerText = isMyTurn ? "Your turn!" : `Waiting for ${currentPlayer}...`;
+        }
+
+        function highlightWin(line) {
+            line.forEach(([r, c]) => {
+                const idx = r * 3 + c;
+                document.querySelectorAll('.cell')[idx].classList.add('win');
+            });
+        }
+
+        document.getElementById('btn-create').onclick = () => {
+            ws.send(JSON.stringify({ action: "create_room" }));
+        };
+
+        document.getElementById('btn-bot').onclick = () => {
+            ws.send(JSON.stringify({ action: "create_bot_room" }));
+        };
+
+        document.getElementById('btn-join').onclick = () => {
+            const room_id = document.getElementById('room-input').value;
+            ws.send(JSON.stringify({ action: "join_room", room_id }));
+        };
+
+        document.querySelectorAll('.cell').forEach(cell => {
+            cell.onclick = () => {
+                if (!gameActive || !isMyTurn) return;
+                const r = parseInt(cell.dataset.r);
+                const c = parseInt(cell.dataset.c);
+                ws.send(JSON.stringify({ action: "make_move", row: r, col: c }));
+            };
+        });
+        
+        restartBtn.onclick = () => {
+            ws.send(JSON.stringify({ action: "restart" }));
+        };
+    </script>
+</body>
+</html>
