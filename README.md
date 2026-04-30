@@ -2,11 +2,6 @@
 
 A real-time multiplayer Tic-Tac-Toe game with a FastAPI WebSocket backend and a Web UI.
 
-## One-Click Deploy
-
-You can deploy this project permanently for free on Render by clicking the button below:
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
 
 ## Running Locally
 
