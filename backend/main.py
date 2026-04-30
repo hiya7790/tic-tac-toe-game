@@ -1,6 +1,9 @@
 import json
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+import os
 from connection_manager import ConnectionManager
 from game_logic import Player, ai_pick_move
 
@@ -17,6 +20,13 @@ app.add_middleware(
 manager = ConnectionManager()
 
 @app.get("/")
+def get_index():
+    # Serve the index.html file
+    index_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "index.html")
+    with open(index_path, "r") as f:
+        return HTMLResponse(f.read())
+
+@app.get("/health")
 def health_check():
     return {"status": "ok", "message": "Tic-Tac-Toe backend is running!"}
 
